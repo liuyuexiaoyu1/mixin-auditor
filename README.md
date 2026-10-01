@@ -84,6 +84,7 @@ Available properties:
 | `mixinAuditor.exit`     | If the Minecraft process should exit after auditing. Options: `true`, `false`, `on_fail`. Default: `true`                                                                                 |
 | `mixinAuditor.failCode` | The return code to be used on exit if audit failed. It should be a valid integer. Default: `19`                                                                                           |
 | `mixinAuditor.configFilter` | Comma separated mixin config name prefixes to restrict the audit to, e.g. `carpet-igny-addition`. Empty means audit every config. Default: empty                                      |
+| `mixinAuditor.excludeMixins` | Comma separated mixin class name prefixes to keep out of the mixin application entirely, e.g. `carpet.`. Empty means apply everything. Default: empty                                  |
 
 ### Filtering configs
 
@@ -122,3 +123,22 @@ mixin dies while the class holding its target is being loaded, which happens lon
 audit is triggered and is out of reach of a filter applied at audit time. Note that with the
 filter active those mods really are inert for the run, which is intended — the point is to audit
 your own mixins without a dependency's breakage getting in the way.
+
+### Excluding mixins
+
+The config filter works at config granularity, which is not always enough: a dependency may ship
+one broken mixin next to working ones, or its config may be needed for other reasons. Set
+`mixinAuditor.excludeMixins` to a comma separated list of mixin class name prefixes to drop
+individual mixins instead:
+
+```gradle
+vmArgs '-DmixinAuditor.excludeMixins=carpet.,some.other.bad.mixin.'
+```
+
+Removal happens from an `IExtension#preApply`, i.e. after the mixin subsystem has collected every
+`MixinInfo` for a target class but before `applyMixins` consumes them, so an excluded mixin is
+never applied and therefore cannot fail. Unlike the config filter, this does not depend on
+modifying the registration set, which makes it the more reliable of the two when the
+registration-time hook does not take effect. It is installed from the same `preLaunch`
+entrypoint, and both the installation and each removal are logged, so the game log tells you
+whether it went through.

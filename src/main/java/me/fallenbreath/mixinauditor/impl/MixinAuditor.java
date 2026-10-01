@@ -78,7 +78,9 @@ public class MixinAuditor
 	{
 		try
 		{
-			MixinEnvironment.getCurrentEnvironment().audit();
+			MixinEnvironment environment = MixinEnvironment.getCurrentEnvironment();
+			AuditConfigFilter.apply(environment);
+			environment.audit();
 		}
 		catch (Throwable t)
 		{

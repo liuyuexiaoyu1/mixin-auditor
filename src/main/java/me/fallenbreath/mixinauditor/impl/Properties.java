@@ -26,4 +26,6 @@ public class Properties
 	public static final String WHEN = "mixinAuditor.when";
 	public static final String EXIT = "mixinAuditor.exit";
 	public static final String FAIL_CODE = "mixinAuditor.failCode";
+	// comma separated mixin config name prefixes to restrict the audit to, empty means audit all
+	public static final String CONFIG_FILTER = "mixinAuditor.configFilter";
 }

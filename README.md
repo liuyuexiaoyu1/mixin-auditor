@@ -83,3 +83,22 @@ Available properties:
 | `mixinAuditor.when`     | When will mixin auditor triggers. Options: `mod_init`, fabric's `ModInitializer#onInitialize` hook; `game_init`, when the game is initialized and is about to start . Default: `mod_init` |
 | `mixinAuditor.exit`     | If the Minecraft process should exit after auditing. Options: `true`, `false`, `on_fail`. Default: `true`                                                                                 |
 | `mixinAuditor.failCode` | The return code to be used on exit if audit failed. It should be a valid integer. Default: `19`                                                                                           |
+| `mixinAuditor.configFilter` | Comma separated mixin config name prefixes to restrict the audit to, e.g. `carpet-igny-addition`. Empty means audit every config. Default: empty                                      |
+
+### Filtering configs
+
+By default the audit covers every mixin config registered in the current environment, including
+those of your dependencies. That is noisy, and since the audit aborts on the first failure, a
+broken mixin of some other mod can hide every failure of your own.
+
+Set `mixinAuditor.configFilter` to a comma separated list of config name prefixes to keep only
+the matching configs. For the usual `&lt;modid&gt;.mixins.json` layout a prefix is just the mod
+id:
+
+```bash
+./gradlew runClientMixinAudit -DmixinAuditor.configFilter=carpet-igny-addition
+```
+
+Matching is by name prefix, and the property is read when the audit runs, so it can also be
+passed via `JAVA_TOOL_OPTIONS`. Configs left out are skipped entirely, and if nothing matches
+you get a warning instead of a silently empty audit.

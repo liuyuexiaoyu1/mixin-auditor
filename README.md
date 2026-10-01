@@ -95,10 +95,22 @@ Set `mixinAuditor.configFilter` to a comma separated list of config name prefixe
 the matching configs. For the usual `&lt;modid&gt;.mixins.json` layout a prefix is just the mod
 id:
 
-```bash
-./gradlew runClientMixinAudit -DmixinAuditor.configFilter=carpet-igny-addition
+```gradle
+loom {
+    runs {
+        clientMixinAudit {
+            client()
+            vmArgs '-DmixinAuditor.audit=true', '-DmixinAuditor.when=game_init'
+            vmArgs '-DmixinAuditor.configFilter=carpet-igny-addition,some-other-mod'
+        }
+    }
+}
 ```
 
-Matching is by name prefix, and the property is read when the audit runs, so it can also be
-passed via `JAVA_TOOL_OPTIONS`. Configs left out are skipped entirely, and if nothing matches
-you get a warning instead of a silently empty audit.
+Note the property has to reach the *game* JVM, so declare it via the run config as above. A
+`-D` on the gradle command line only configures the gradle daemon and will silently do nothing.
+Exporting `JAVA_TOOL_OPTIONS` also works, since the forked game JVM inherits it.
+
+Matching is by name prefix, and the property is read when the audit runs, not when the mod
+initialises. Configs left out are skipped entirely, and if nothing matches you get a warning
+instead of a silently empty audit.

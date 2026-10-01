@@ -28,4 +28,7 @@ public class Properties
 	public static final String FAIL_CODE = "mixinAuditor.failCode";
 	// comma separated mixin config name prefixes to restrict the audit to, empty means audit all
 	public static final String CONFIG_FILTER = "mixinAuditor.configFilter";
+	// comma separated mixin class name prefixes to keep out of the mixin application entirely,
+	// empty means apply everything
+	public static final String EXCLUDE = "mixinAuditor.excludeMixins";
 }

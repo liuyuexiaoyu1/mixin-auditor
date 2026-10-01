@@ -22,6 +22,7 @@ package me.fallenbreath.mixinauditor;
 
 import me.fallenbreath.mixinauditor.impl.AuditConfigFilter;
 import me.fallenbreath.mixinauditor.impl.MixinAuditor;
+import me.fallenbreath.mixinauditor.impl.MixinExclusion;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 
 /**
@@ -42,5 +43,6 @@ public class MixinAuditorPreLaunch implements PreLaunchEntrypoint
 		}
 
 		AuditConfigFilter.applyToRegistration();
+		MixinExclusion.install();
 	}
 }

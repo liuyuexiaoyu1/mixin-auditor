@@ -111,6 +111,14 @@ Note the property has to reach the *game* JVM, so declare it via the run config 
 `-D` on the gradle command line only configures the gradle daemon and will silently do nothing.
 Exporting `JAVA_TOOL_OPTIONS` also works, since the forked game JVM inherits it.
 
-Matching is by name prefix, and the property is read when the audit runs, not when the mod
-initialises. Configs left out are skipped entirely, and if nothing matches you get a warning
-instead of a silently empty audit.
+Matching is by name prefix, and if nothing matches you get a warning instead of a silently
+empty audit.
+
+The filter is applied in two places. A `preLaunch` entrypoint drops the excluded configs from
+the registration set before the mixin subsystem ever prepares them, so their mixins are never
+applied at all, and a second pass right before auditing covers anything that slipped through.
+Filtering that early is what makes the option usable when a dependency mixin is broken: such a
+mixin dies while the class holding its target is being loaded, which happens long before an
+audit is triggered and is out of reach of a filter applied at audit time. Note that with the
+filter active those mods really are inert for the run, which is intended — the point is to audit
+your own mixins without a dependency's breakage getting in the way.

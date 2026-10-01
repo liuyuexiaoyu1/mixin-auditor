@@ -23,11 +23,14 @@ package me.fallenbreath.mixinauditor.impl;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.MixinEnvironment;
+import org.spongepowered.asm.mixin.Mixins;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfig;
+import org.spongepowered.asm.mixin.transformer.Config;
 
 /**
  * Restricts the audit to a subset of the registered mixin configs.
@@ -45,6 +48,47 @@ import org.spongepowered.asm.mixin.extensibility.IMixinConfig;
 public class AuditConfigFilter
 {
 	private static final Logger LOGGER = LogManager.getLogger(AuditConfigFilter.class);
+
+	/**
+	 * Drop excluded configs from the registration set, before the mixin subsystem turns them into
+	 * MixinConfig instances.
+	 *
+	 * <p>MixinProcessor::selectConfigs reads Mixins::getConfigs lazily, on the first class that
+	 * needs transforming, so filtering here keeps an excluded config from ever being prepared and
+	 * its mixins from ever being applied. That is what makes it safe to run an audit in an
+	 * environment where a dependency mixin does not work: such a mixin blows up while the class
+	 * holding its target is loaded, which happens long before the audit is triggered and is
+	 * therefore out of reach of any filtering done at audit time.</p>
+	 *
+	 * <p>Intended to be called from a preLaunch entrypoint, i.e. after the mods registered their
+	 * configs but before the game classes are loaded.</p>
+	 */
+	public static void applyToRegistration()
+	{
+		List<String> prefixes = getPrefixes();
+		if (prefixes.isEmpty())
+		{
+			return;
+		}
+
+		try
+		{
+			Set<Config> configs = Mixins.getConfigs();
+			int total = configs.size();
+			configs.removeIf(config -> !matches(prefixes, config.getName()));
+			int kept = configs.size();
+
+			LOGGER.info("Mixin config filter '{}' keeps {} of {} registered configs", String.join(", ", prefixes), kept, total);
+			if (kept == 0)
+			{
+				LOGGER.warn("The mixin config filter '{}' matched no registered config", String.join(", ", prefixes));
+			}
+		}
+		catch (Throwable t)
+		{
+			LOGGER.error("Failed to filter the registered mixin configs", t);
+		}
+	}
 
 	/**
 	 * Drop every collected mixin config that is not covered by the configured prefixes.

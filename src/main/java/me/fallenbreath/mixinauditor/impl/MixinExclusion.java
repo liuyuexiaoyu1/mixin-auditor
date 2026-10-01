@@ -30,6 +30,8 @@ import org.apache.logging.log4j.Logger;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
+import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
+import org.spongepowered.asm.mixin.transformer.ext.Extensions;
 import org.spongepowered.asm.mixin.transformer.ext.IExtension;
 import org.spongepowered.asm.mixin.transformer.ext.ITargetClassContext;
 
@@ -72,15 +74,20 @@ public class MixinExclusion implements IExtension
 
 		try
 		{
-			Object transformer = MixinEnvironment.getDefaultEnvironment().getActiveTransformer();
+			IMixinTransformer transformer = (IMixinTransformer) MixinEnvironment.getDefaultEnvironment().getActiveTransformer();
 			if (transformer == null)
 			{
 				LOGGER.warn("No active mixin transformer, the mixin exclusion is not installed");
 				return;
 			}
 
-			Object extensions = transformer.getClass().getMethod("getExtensions").invoke(transformer);
-			extensions.getClass().getMethod("add", IExtension.class).invoke(extensions, new MixinExclusion(prefixes));
+			// go through the public IMixinTransformer interface: MixinTransformer itself is package
+			// private, so reflecting on its members from here trips the access check
+			Extensions extensions = (Extensions) transformer.getExtensions();
+			extensions.add(new MixinExclusion(prefixes));
+			// add() only appends to the full list; preApply iterates activeExtensions, which select()
+			// rebuilds. Re-run it so the new extension is actually called.
+			extensions.select(MixinEnvironment.getDefaultEnvironment());
 			LOGGER.info("Mixin exclusion installed, keeping mixin prefixes out of the application: {}", String.join(", ", prefixes));
 		}
 		catch (Throwable t)
@@ -107,19 +114,27 @@ public class MixinExclusion implements IExtension
 		{
 			Field field = findField(context.getClass(), "mixins");
 			Object value = field.get(context);
-
-			if (value instanceof SortedSet)
+			if (!(value instanceof SortedSet))
 			{
-				SortedSet<IMixinInfo> mixins = castMixins(value);
-				mixins.removeIf(mixin -> {
-					String mixinClassName = mixin.getClassName();
-					boolean excluded = matches(mixinClassName);
-					if (excluded)
-					{
-						LOGGER.warn("Kept mixin {} out of the application", mixinClassName);
-					}
-					return excluded;
-				});
+				return;
+			}
+
+			SortedSet<IMixinInfo> mixins = castMixins(value);
+			List<String> excluded = new ArrayList<>();
+
+			mixins.removeIf(mixin -> {
+				String mixinClassName = mixin.getClassName();
+				if (matches(mixinClassName))
+				{
+					excluded.add(mixinClassName);
+					return true;
+				}
+				return false;
+			});
+
+			if (!excluded.isEmpty())
+			{
+				LOGGER.info("Kept {} mixin(s) out of the application: {}", excluded.size(), String.join(", ", excluded));
 			}
 		}
 		catch (Throwable t)

@@ -29,6 +29,9 @@ public class Properties
 	// comma separated mixin config name prefixes to restrict the audit to, empty means audit all
 	public static final String CONFIG_FILTER = "mixinAuditor.configFilter";
 	// comma separated mixin class name prefixes to keep out of the mixin application entirely,
-	// empty means apply everything
+	// empty means drop nothing
 	public static final String EXCLUDE = "mixinAuditor.excludeMixins";
+	// comma separated mixin class name prefixes to keep in the mixin application, everything else
+	// is dropped, empty means keep everything
+	public static final String KEEP = "mixinAuditor.keepMixins";
 }

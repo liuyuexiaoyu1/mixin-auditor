@@ -40,34 +40,41 @@ import org.spongepowered.asm.mixin.transformer.ext.ITargetClassContext;
  *
  * <p>An audit may be run in an environment whose mods do not match the audited game version: a
  * dependency mixin whose injection points no longer exist blows up while its target class is
- * being transformed, which happens before the audit is ever triggered. Dropping its config from
- * the registration set is one way to avoid that, but a single mixin can also be removed right
- * before it is applied.</p>
+ * being transformed, which happens before the audit is ever triggered. Such a mixin can be
+ * removed right before it is applied.</p>
  *
  * <p>MixinProcessor collects every MixinInfo for a target class into the TargetClassContext it
  * creates, and calls applyMixins on it only afterwards. IExtension#preApply runs in between and
  * the collected set is a plain sorted collection, so removing entries here keeps them from ever
  * being applied.</p>
+ *
+ * <p>Two properties drive the selection. "mixinAuditor.excludeMixins" lists class name prefixes
+ * to drop, which means naming every dependency that gets in the way. "mixinAuditor.keepMixins"
+ * lists the prefixes to keep instead and drops everything else, which is usually a single entry
+ * since a project's own mixins share a package. The exclude list wins when both match.</p>
  */
 public class MixinExclusion implements IExtension
 {
 	private static final Logger LOGGER = LogManager.getLogger(MixinExclusion.class);
 	private static final String TARGET_CONTEXT_CLASS = "org.spongepowered.asm.mixin.transformer.TargetClassContext";
 
-	private final List<String> prefixes;
+	private final List<String> dropPrefixes;
+	private final List<String> keepPrefixes;
 
-	private MixinExclusion(List<String> prefixes)
+	private MixinExclusion(List<String> dropPrefixes, List<String> keepPrefixes)
 	{
-		this.prefixes = prefixes;
+		this.dropPrefixes = dropPrefixes;
+		this.keepPrefixes = keepPrefixes;
 	}
 
 	/**
-	 * Install the exclusion extension. Does nothing when no mixin prefix is configured.
+	 * Install the exclusion extension. Does nothing when neither list is configured.
 	 */
 	public static void install()
 	{
-		List<String> prefixes = getPrefixes();
-		if (prefixes.isEmpty())
+		List<String> dropPrefixes = readPrefixes(Properties.EXCLUDE);
+		List<String> keepPrefixes = readPrefixes(Properties.KEEP);
+		if (dropPrefixes.isEmpty() && keepPrefixes.isEmpty())
 		{
 			return;
 		}
@@ -84,11 +91,19 @@ public class MixinExclusion implements IExtension
 			// go through the public IMixinTransformer interface: MixinTransformer itself is package
 			// private, so reflecting on its members from here trips the access check
 			Extensions extensions = (Extensions) transformer.getExtensions();
-			extensions.add(new MixinExclusion(prefixes));
+			extensions.add(new MixinExclusion(dropPrefixes, keepPrefixes));
 			// add() only appends to the full list; preApply iterates activeExtensions, which select()
 			// rebuilds. Re-run it so the new extension is actually called.
 			extensions.select(MixinEnvironment.getDefaultEnvironment());
-			LOGGER.info("Mixin exclusion installed, keeping mixin prefixes out of the application: {}", String.join(", ", prefixes));
+
+			if (!dropPrefixes.isEmpty())
+			{
+				LOGGER.info("Mixin exclusion drops mixins matching: {}", String.join(", ", dropPrefixes));
+			}
+			if (!keepPrefixes.isEmpty())
+			{
+				LOGGER.info("Mixin exclusion keeps only mixins matching: {}", String.join(", ", keepPrefixes));
+			}
 		}
 		catch (Throwable t)
 		{
@@ -124,7 +139,7 @@ public class MixinExclusion implements IExtension
 
 			mixins.removeIf(mixin -> {
 				String mixinClassName = mixin.getClassName();
-				if (matches(mixinClassName))
+				if (shouldExclude(mixinClassName))
 				{
 					excluded.add(mixinClassName);
 					return true;
@@ -153,6 +168,35 @@ public class MixinExclusion implements IExtension
 	{
 	}
 
+	private boolean shouldExclude(String mixinClassName)
+	{
+		if (mixinClassName == null)
+		{
+			return false;
+		}
+
+		if (matches(dropPrefixes, mixinClassName))
+		{
+			return true;
+		}
+
+		// with a keep list configured, anything not matching it is dropped
+		return !keepPrefixes.isEmpty() && !matches(keepPrefixes, mixinClassName);
+	}
+
+	private static boolean matches(List<String> prefixes, String mixinClassName)
+	{
+		for (String prefix : prefixes)
+		{
+			if (mixinClassName.startsWith(prefix))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	@SuppressWarnings("unchecked")
 	private static SortedSet<IMixinInfo> castMixins(Object value)
 	{
@@ -178,9 +222,9 @@ public class MixinExclusion implements IExtension
 		throw new NoSuchFieldException(name + " in " + owner.getName());
 	}
 
-	private static List<String> getPrefixes()
+	private static List<String> readPrefixes(String property)
 	{
-		String raw = System.getProperty(Properties.EXCLUDE, "");
+		String raw = System.getProperty(property, "");
 		List<String> prefixes = new ArrayList<>();
 
 		for (String part : raw.split(","))
@@ -193,23 +237,5 @@ public class MixinExclusion implements IExtension
 		}
 
 		return prefixes;
-	}
-
-	private boolean matches(String mixinClassName)
-	{
-		if (mixinClassName == null)
-		{
-			return false;
-		}
-
-		for (String prefix : prefixes)
-		{
-			if (mixinClassName.startsWith(prefix))
-			{
-				return true;
-			}
-		}
-
-		return false;
 	}
 }

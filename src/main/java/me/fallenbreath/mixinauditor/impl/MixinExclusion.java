@@ -22,7 +22,9 @@ package me.fallenbreath.mixinauditor.impl;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -57,6 +59,7 @@ public class MixinExclusion implements IExtension
 {
 	private static final Logger LOGGER = LogManager.getLogger(MixinExclusion.class);
 	private static final String TARGET_CONTEXT_CLASS = "org.spongepowered.asm.mixin.transformer.TargetClassContext";
+	private static final Set<String> excludedMixins = new LinkedHashSet<>();
 
 	private final List<String> dropPrefixes;
 	private final List<String> keepPrefixes;
@@ -117,6 +120,21 @@ public class MixinExclusion implements IExtension
 		return true;
 	}
 
+	/**
+	 * Report what was kept out, once. Called when the audit is done, so the log stays readable
+	 * no matter how many target classes were processed. The per-mixin list goes to debug.
+	 */
+	public static void logSummary()
+	{
+		if (excludedMixins.isEmpty())
+		{
+			return;
+		}
+
+		LOGGER.info("Mixin exclusion kept {} mixin(s) out of the application", excludedMixins.size());
+		LOGGER.debug("Excluded mixins: {}", String.join(", ", excludedMixins));
+	}
+
 	@Override
 	public void preApply(ITargetClassContext context)
 	{
@@ -135,22 +153,19 @@ public class MixinExclusion implements IExtension
 			}
 
 			SortedSet<IMixinInfo> mixins = castMixins(value);
-			List<String> excluded = new ArrayList<>();
 
 			mixins.removeIf(mixin -> {
 				String mixinClassName = mixin.getClassName();
 				if (shouldExclude(mixinClassName))
 				{
-					excluded.add(mixinClassName);
+					// collected and reported once at the end: one line per target class would bury
+					// the rest of the log
+					LOGGER.debug("Kept mixin {} out of the application", mixinClassName);
+					excludedMixins.add(mixinClassName);
 					return true;
 				}
 				return false;
 			});
-
-			if (!excluded.isEmpty())
-			{
-				LOGGER.info("Kept {} mixin(s) out of the application: {}", excluded.size(), String.join(", ", excluded));
-			}
 		}
 		catch (Throwable t)
 		{

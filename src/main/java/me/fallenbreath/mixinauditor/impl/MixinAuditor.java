@@ -87,6 +87,10 @@ public class MixinAuditor
 			LOGGER.error("Error when auditing mixin", t);
 			return false;
 		}
+		finally
+		{
+			MixinExclusion.logSummary();
+		}
 
 		LOGGER.info("Mixin environment audited successfully");
 		return true;
